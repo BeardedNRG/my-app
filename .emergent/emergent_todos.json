@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1 POC: Download + unzip source bundle, extract text from all PDFs/MDs, hash inventory, 1 LLM structured summary call",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 2: Backend — ingestion pipeline, classification, contradiction detection, artifact generation, APIs",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend — Source Lock Console (Dashboard, Source Index, Detail, Contradictions, Artifacts, Report, Accept)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: All user stories covered in development",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: End to End Testing using Testing Agent",
+    "status": "pending"
+  }
+]

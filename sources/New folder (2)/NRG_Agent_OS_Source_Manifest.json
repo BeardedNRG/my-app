@@ -1,0 +1,250 @@
+[
+  {
+    "file": "Architecting the NRG Agent OS - Google Gemini.pdf",
+    "classification": "PRIMARY_ARCHITECTURE_DIALOGUE",
+    "use": "Kernel, registry validation, memory, router, validation, audit, workers, skills, recovery, UI, Day One, final tests",
+    "bytes": 2755081,
+    "text_chars": 258284,
+    "sha256_prefix": "efa579aed430e9e2"
+  },
+  {
+    "file": "concept designs - Agent OS Design Principles.pdf",
+    "classification": "DESIGN_PRINCIPLES",
+    "use": "Model-agnostic OS, router, skills, full-stack layers, local/cloud strategy",
+    "bytes": 2665603,
+    "text_chars": 72383,
+    "sha256_prefix": "0ea234c46017ac00"
+  },
+  {
+    "file": "concept designs - Combine Plan Optimization.pdf",
+    "classification": "STRATEGY_DRAFT",
+    "use": "Fable as architect, Hermes runtime, durable assets, model agnostic goal",
+    "bytes": 3685663,
+    "text_chars": 58725,
+    "sha256_prefix": "95416165f57b5d9a"
+  },
+  {
+    "file": "concept designs - Final Fable Handoff.pdf",
+    "classification": "HANDOFF_DRAFT",
+    "use": "Fable handoff, role split, source priority, corrected core intent",
+    "bytes": 179490,
+    "text_chars": 16962,
+    "sha256_prefix": "3bf402c7e18a6597"
+  },
+  {
+    "file": "concept designs - Memory Integration and Planning.pdf",
+    "classification": "MEMORY_AND_INSPIRATION",
+    "use": "Persistent memory, JARVIS as inspiration only, memory capture ideas",
+    "bytes": 658060,
+    "text_chars": 36337,
+    "sha256_prefix": "4853dca764edfe7d"
+  },
+  {
+    "file": "concept designs - NRG Agent OS Overview.pdf",
+    "classification": "PRIMARY_ARCHITECTURE_DRAFT",
+    "use": "Full-stack scope, kernel/control layer, roles, memory, safety, build order",
+    "bytes": 5866511,
+    "text_chars": 87412,
+    "sha256_prefix": "a8fa1015ff2b6b0f"
+  },
+  {
+    "file": "concept designs - NRG Agent OS Workflow.pdf",
+    "classification": "PROCESS_CORRECTION",
+    "use": "WAIT MODE, PROCESS NOW, avoid mixing intake and processing",
+    "bytes": 158182,
+    "text_chars": 6069,
+    "sha256_prefix": "0b1fe42e3c008a82"
+  },
+  {
+    "file": "concept designs - Review Request.pdf",
+    "classification": "DISTILLATION_ATTEMPT",
+    "use": "Source-map-first processing, slow review, single final output",
+    "bytes": 392914,
+    "text_chars": 49850,
+    "sha256_prefix": "19fbd770360c7664"
+  },
+  {
+    "file": "concept designs - Startup Prompt Creation.pdf",
+    "classification": "ACCESS_SCOPE_CONTEXT",
+    "use": "Honest source access, DONE WITH COPY, wait mode",
+    "bytes": 152413,
+    "text_chars": 5210,
+    "sha256_prefix": "55b0ec4378c2dd68"
+  },
+  {
+    "file": "concept designs - Startup Prompt Instructions.pdf",
+    "classification": "SOURCE_PROCESSING_METHOD",
+    "use": "Multi-pass distillation, no options, integrate before replying",
+    "bytes": 878429,
+    "text_chars": 45099,
+    "sha256_prefix": "055d1bcc49a8e04b"
+  },
+  {
+    "file": "concept designs jarvis style  - Final Fable Handoff.pdf",
+    "classification": "PARALLEL_HANDOFF_DRAFT",
+    "use": "Duplicate/parallel handoff, JARVIS inspiration context",
+    "bytes": 432855,
+    "text_chars": 17300,
+    "sha256_prefix": "b9b7cd56916e3770"
+  },
+  {
+    "file": "Dashboard OS Agent Framework Setup - Google Gemini.pdf",
+    "classification": "HISTORICAL_AGENT_SCAFFOLD",
+    "use": "Early .agent.md/AGENTS.md idea, UI/Data API agents as later scaffolds",
+    "bytes": 400431,
+    "text_chars": 15723,
+    "sha256_prefix": "5a58b20bd309df38"
+  },
+  {
+    "file": "deep-research-report.md",
+    "classification": "EXTERNAL_ASSESSMENT_MD",
+    "use": "Gap analysis, roadmap, KPIs, stack recommendation, operational maturity",
+    "bytes": 31854,
+    "text_chars": 31854,
+    "sha256_prefix": "12cf6e47f0381682"
+  },
+  {
+    "file": "DISTILL 7 FOLD!.md",
+    "classification": "FABLE_METHOD_SOURCE",
+    "use": "Fable forensic methodology, ground/wound/merge/verify/rails, skill extraction",
+    "bytes": 279169,
+    "text_chars": 267087,
+    "sha256_prefix": "4895a6d2e0a9544c"
+  },
+  {
+    "file": "End Of Source Conversation.pdf",
+    "classification": "LOCKED_INTENT_SOURCE",
+    "use": "Final priorities and source-map-first instruction",
+    "bytes": 15005,
+    "text_chars": 1309,
+    "sha256_prefix": "deb35ab988ff76c7"
+  },
+  {
+    "file": "Fable 5 Model Behavioural Biopsy - Google Gemini.pdf",
+    "classification": "BEHAVIOURAL_ANALYSIS",
+    "use": "Fable strengths/liabilities, use as architect/reviewer, not kernel law",
+    "bytes": 1896374,
+    "text_chars": 103717,
+    "sha256_prefix": "f43e48ea41026607"
+  },
+  {
+    "file": "Fable 5 OS Design Blueprint - Google Gemini.pdf",
+    "classification": "ARCHITECTURE_BLUEPRINT_SOURCE",
+    "use": "OS design blueprint, kernel/permissions/router ideas, Fable method",
+    "bytes": 2218365,
+    "text_chars": 312079,
+    "sha256_prefix": "b120c55464de7d0c"
+  },
+  {
+    "file": "Fable Pack Feedback.pdf",
+    "classification": "PACKAGING_GUIDANCE",
+    "use": "Big pack useful as evidence; carve into kernel, skill, task card",
+    "bytes": 356982,
+    "text_chars": 24295,
+    "sha256_prefix": "a6cc38c3bf14dd83"
+  },
+  {
+    "file": "JARVIS-Prompt-Pack.pdf",
+    "classification": "INSPIRATION_ONLY",
+    "use": "Knowledge galaxy, note-grounded chat, voice, fly-to-source, memory capture",
+    "bytes": 627476,
+    "text_chars": 10282,
+    "sha256_prefix": "b5f697526b049511"
+  },
+  {
+    "file": "NRG Agent OS Dashboard Information Pack Assessment.pdf",
+    "classification": "EXTERNAL_ASSESSMENT",
+    "use": "Architecturally strong, operationally immature; source lock and contracts first",
+    "bytes": 34419365,
+    "text_chars": 58086,
+    "sha256_prefix": "4ff476102c359a78"
+  },
+  {
+    "file": "NRG Agent OS Factory Pack.pdf",
+    "classification": "PRIMARY_SOURCE_PACK",
+    "use": "Full source map, roles, memory, kernel, task cards, safety rules",
+    "bytes": 237798,
+    "text_chars": 56854,
+    "sha256_prefix": "5738c813bf4c5092"
+  },
+  {
+    "file": "NRG Agent OS Source Intake Prompt.pdf",
+    "classification": "SOURCE_PROCESSING_RULES",
+    "use": "How to read messy sources; latest corrected intent priority",
+    "bytes": 68001,
+    "text_chars": 18225,
+    "sha256_prefix": "388ac87ba90dc547"
+  },
+  {
+    "file": "NRG-Agent-OS - Agent Rules - XML Behavioral Framework.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Agent rules XML-style behaviour framework",
+    "bytes": 1306,
+    "text_chars": 1306,
+    "sha256_prefix": "6161bf3d211bdfd9"
+  },
+  {
+    "file": "NRG-Agent-OS - Fable-5 Master Intake Pack - Copy 01.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Prior Fable intake pack",
+    "bytes": 6257,
+    "text_chars": 6257,
+    "sha256_prefix": "618b89638aaff515"
+  },
+  {
+    "file": "NRG-Agent-OS - Fable-5 Master OS Architecture Intake.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Prior master OS architecture intake",
+    "bytes": 2854,
+    "text_chars": 2854,
+    "sha256_prefix": "f96a5ef96d54f725"
+  },
+  {
+    "file": "NRG-Agent-OS - Phase 0 System State - Source Lock - Copy 01.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Existing Phase 0 source lock state",
+    "bytes": 982,
+    "text_chars": 982,
+    "sha256_prefix": "2cf26953462773c9"
+  },
+  {
+    "file": "NRG-Agent-OS - Project Manifest.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Project manifest",
+    "bytes": 2180,
+    "text_chars": 2180,
+    "sha256_prefix": "5d475edf2e4d2158"
+  },
+  {
+    "file": "NRG-Agent-OS - Skill - fable.forensic-methodology.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Fable forensic methodology skill",
+    "bytes": 3613,
+    "text_chars": 3613,
+    "sha256_prefix": "28509277ab0ee58b"
+  },
+  {
+    "file": "NRG-Agent-OS - Worker Task Card Template - Minimal Verification Gate.md",
+    "classification": "EXISTING_ARTIFACT",
+    "use": "Minimal worker task card",
+    "bytes": 495,
+    "text_chars": 495,
+    "sha256_prefix": "cd0f798da6c74cf9"
+  },
+  {
+    "file": "NRG_Agent_OS_Final_Archive_Report.md",
+    "classification": "PRIOR_ARCHIVE_REPORT",
+    "use": "Previous single archive report to supersede/extend",
+    "bytes": 47824,
+    "text_chars": 47824,
+    "sha256_prefix": "1778e4c2e703d821"
+  },
+  {
+    "file": "user-adhd-communication-style.md",
+    "classification": "USER_COMMUNICATION_CONTEXT",
+    "use": "Communication style constraints: one clean answer, no add-ons",
+    "bytes": 887,
+    "text_chars": 887,
+    "sha256_prefix": "2f47dbdc3f97b596"
+  }
+]
