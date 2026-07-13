@@ -26,11 +26,20 @@ stage ever needs to re-scan the disk.
 3. **Report** (`storage-report`) — generate the visual HTML dashboard and show
    it to the user *before* proposing changes. Seeing what they have is half
    the job.
-4. **Dedupe** (`file-dedupe`) — find exact duplicates, propose keepers,
-   quarantine (never delete) the rest only after user approval.
+4. **Dedupe** (`file-dedupe`) — find exact duplicates, duplicated folder
+   trees, and near-duplicate photos; propose keepers, quarantine (never
+   delete) the rest only after user approval.
 5. **Organize** (`file-organize`) — design the target layout with the user,
    generate a move plan, dry-run it, then apply with an undo journal.
-6. **Report again** — regenerate the dashboard so the user sees the result.
+6. **Verify** (`file-verify`) — after EVERY apply step, audit the journal
+   against the plan and the disk before reporting success. The verify
+   verdict is the success report; on FAIL, stop and offer undo.
+7. **Report again** — regenerate the dashboard so the user sees the result.
+
+Optional enrichment passes during step 2, when the user's goals call for
+them: `photo_triage.py` (real photos vs memes/screenshots/web saves),
+`video_meta.py` (resolution/duration), `archive_peek.py` (what's inside
+zips/tars), `classify.py --exif` (photo years).
 
 ## Ground rules (safety)
 

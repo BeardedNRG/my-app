@@ -78,6 +78,28 @@ python3 scripts/classify.py --db ... --unset-unit "/path/to/dir"
 
 3. Hand off to `storage-report` for the visual dashboard.
 
+## Video metadata
+
+```bash
+python3 scripts/video_meta.py --db ~/file-org/catalog.db
+```
+
+Fills `files.video_w/video_h/duration_s` and prints a resolution breakdown
+(4K+/1080p/720p/SD). Uses ffprobe automatically when installed (covers
+mkv/wmv/everything); otherwise a stdlib MP4/MOV/AVI parser. Useful before
+dedupe decisions on video collections — resolution identifies the keeper.
+
+## Archive contents
+
+```bash
+python3 scripts/archive_peek.py --db ~/file-org/catalog.db
+```
+
+Lists inside zip/tar (stdlib) and 7z/rar (if `7z`/`unrar` installed)
+without extracting; writes a one-line summary per archive
+(`files.archive_summary`: entries, uncompressed size, dominant category,
+top folders) so "backup2016.zip" stops being a mystery.
+
 ## Extending the taxonomy
 
 Edit the tables in `scripts/classify.py` (EXT_CATEGORIES, unit markers) —
