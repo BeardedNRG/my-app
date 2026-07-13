@@ -45,9 +45,11 @@ def main():
     dests = cfg.get("destinations", {})
     keep_below = cfg.get("keep_subtree_below")
     year_cats = set(cfg.get("year_subfolders", []))
+    kind_dests = cfg.get("photo_kind_destinations", {})
     con = sqlite3.connect(args.db)
-    has_year = "media_year" in {
-        r[1] for r in con.execute("PRAGMA table_info(files)")}
+    fcols = {r[1] for r in con.execute("PRAGMA table_info(files)")}
+    has_year = "media_year" in fcols
+    has_kind = "photo_kind" in fcols
 
     rows = []
     seen_dst = set()
@@ -83,15 +85,19 @@ def main():
 
     # Loose files.
     year_col = "media_year" if has_year else "NULL"
-    for path, cat, size, root, myear, mtime in con.execute(
-            f"SELECT path, category, size, root, {year_col}, mtime"
-            " FROM files WHERE unit_id IS NULL"):
-        d = dests.get(cat)
+    kind_col = "photo_kind" if has_kind else "NULL"
+    for path, cat, size, root, myear, mtime, pkind in con.execute(
+            f"SELECT path, category, size, root, {year_col}, mtime,"
+            f" {kind_col} FROM files WHERE unit_id IS NULL"):
+        # photo triage routing wins over the plain category mapping
+        d = kind_dests.get(pkind) if pkind else None
+        if d is None:
+            d = dests.get(cat)
         if not d:
             skipped[f"category '{cat}' unmapped/null"] += 1
             continue
         year = None
-        if cat in year_cats:
+        if cat in year_cats and (not pkind or pkind == "camera"):
             year = myear or time.localtime(mtime).tm_year
         add("file", cat, path, d, size, root, year)
 

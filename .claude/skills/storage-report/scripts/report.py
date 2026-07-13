@@ -119,6 +119,24 @@ def build(con, args):
                 f'<div class="bar-val">{fmt_size(b)} · {n:,} files</div></div>')
         add('</div></section>')
 
+    # ---- photo triage
+    if has_column(con, "files", "photo_kind"):
+        kinds = con.execute(
+            "SELECT photo_kind, COUNT(*), SUM(size) FROM files"
+            " WHERE photo_kind IS NOT NULL GROUP BY photo_kind"
+            " ORDER BY COUNT(*) DESC").fetchall()
+        if kinds:
+            labels = {"camera": "Camera photos", "screenshot": "Screenshots",
+                      "saved_web": "Saved from web (memes, FB, downloads)",
+                      "unknown": "Unclear — review pile"}
+            add('<section><h2>Photo triage</h2><div class="scroll"><table>'
+                '<tr><th>Kind</th><th>Images</th><th>Size</th></tr>')
+            for kind, n, b in kinds:
+                add(f'<tr><td>{html.escape(labels.get(kind, kind))}</td>'
+                    f'<td data-s="{n}">{n:,}</td>'
+                    f'<td data-s="{b or 0}">{fmt_size(b)}</td></tr>')
+            add('</table></div></section>')
+
     # ---- planned moves preview
     if plan_rows:
         by_cat = defaultdict(list)

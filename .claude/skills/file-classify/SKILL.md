@@ -30,6 +30,27 @@ which lets `file-organize` sort photos into `Photos/<year>/...` via its
 `year_subfolders` config. Use it when the user wants photos organized by
 year; skip it otherwise — it opens every image once.
 
+## Photo triage (real photos vs memes/screenshots/web saves)
+
+When the user wants saved junk separated from their actual photographs:
+
+```bash
+python3 scripts/photo_triage.py --db ~/file-org/catalog.db [--reset]
+```
+
+Writes `files.photo_kind`: `camera` / `screenshot` / `saved_web` /
+`unknown`. Signals: camera EXIF (social platforms strip it), filename
+forensics (`FB_IMG_*` and Facebook CDN names, `received_*`, `Screenshot_*`,
+`IMG_nnnn`), pixel dimensions, and — when Pillow is installed — content
+flatness (memes are flat graphics, photos are gradients). `unknown` is a
+deliberate review pile: nothing ambiguous is ever called junk.
+
+Always show the user the per-kind example files it prints and let them
+spot-check before routing kinds to folders with `file-organize`'s
+`photo_kind_destinations` config (e.g. camera → `Photos/`, screenshot →
+`Photos/Screenshots/`, saved_web → `Photos/Saved-from-web/`). The
+storage-report dashboard shows the triage breakdown once this has run.
+
 ## How it decides (order matters)
 
 1. **Unit detection first.** A directory containing `.vmx`/`.vbox`/`.vdi`/

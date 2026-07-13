@@ -37,7 +37,12 @@ JSON config:
     "photo_library": "/mnt/d/Media/Photos/Libraries"
   },
   "keep_subtree_below": "/mnt/d/Media/Video",
-  "year_subfolders": ["image"]
+  "year_subfolders": ["image"],
+  "photo_kind_destinations": {
+    "camera":     "/mnt/d/Media/Photos",
+    "screenshot": "/mnt/d/Media/Photos/Screenshots",
+    "saved_web":  "/mnt/d/Media/Photos/Saved-from-web"
+  }
 }
 ```
 
@@ -51,6 +56,11 @@ JSON config:
 - `year_subfolders` lists categories to group by year instead of by drive:
   `<dest>/<year>/<original parent>/`. The year comes from EXIF capture date
   when `file-classify --exif` has run, else the file's modification year.
+- `photo_kind_destinations` routes triaged images (see `file-classify`'s
+  photo_triage) by kind, overriding the plain `image` mapping. Year
+  subfolders apply only to `camera` — memes don't deserve a timeline.
+  Leave `unknown` unmapped so the review pile follows the normal `image`
+  destination rather than being filed as junk.
 
 ## Step 2 — plan (touches nothing)
 
