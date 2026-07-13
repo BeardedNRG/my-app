@@ -13,8 +13,16 @@ the "what do I have?" view, after dedupe/organize for the before/after.
 
 ```bash
 python3 scripts/report.py --db ~/file-org/catalog.db \
-    --out ~/file-org/storage-report.html [--top-dirs 30] [--top-files 50]
+    --out ~/file-org/storage-report.html [--top-dirs 30] [--top-files 50] \
+    [--plan ~/file-org/move-plan.csv]
 ```
+
+Pass `--plan` after `file-organize` has generated a move plan: the report
+gains a **"Planned moves — review before applying"** section showing items
+and bytes per destination plus the largest individual moves (from → to),
+so the user approves the reorganization visually instead of reading a CSV.
+Regenerate with `--plan` and show it to the user BEFORE running
+`apply_moves.py`.
 
 Then send the HTML to the user (`SendUserFile` with `display: render`, or
 publish as an Artifact if they want a shareable page).

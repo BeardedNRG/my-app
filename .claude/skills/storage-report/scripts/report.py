@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render the file-org catalog as a self-contained HTML dashboard."""
 import argparse
+import csv
 import html
 import json
 import os
@@ -67,6 +68,12 @@ def build(con, args):
     has_hash = has_column(con, "files", "full_hash")
     has_units = has_table(con, "units")
 
+    plan_rows = []
+    if args.plan and os.path.exists(args.plan):
+        plan_rows = [r for r in csv.DictReader(open(args.plan))]
+        for r in plan_rows:
+            r["size"] = int(r.get("size") or 0)
+
     dup_bytes = 0
     dup_groups = []
     if has_hash:
@@ -86,6 +93,10 @@ def build(con, args):
         tiles.append(("Units (VMs, repos, apps)", f"{nu:,}"))
     if dup_bytes:
         tiles.append(("Duplicate waste", fmt_size(dup_bytes)))
+    if plan_rows:
+        tiles.append(("Planned moves",
+                      f"{len(plan_rows):,} · "
+                      f"{fmt_size(sum(r['size'] for r in plan_rows))}"))
     add('<section class="tiles">')
     for label, val in tiles:
         add(f'<div class="tile"><div class="v">{val}</div>'
@@ -107,6 +118,42 @@ def build(con, args):
                 f'style="width:{pct:.1f}%;background:{c}"></div></div>'
                 f'<div class="bar-val">{fmt_size(b)} · {n:,} files</div></div>')
         add('</div></section>')
+
+    # ---- planned moves preview
+    if plan_rows:
+        by_cat = defaultdict(list)
+        for r in plan_rows:
+            by_cat[r["category"]].append(r)
+        by_dest = {}
+        for cat, rows_ in by_cat.items():
+            dests = [r["dst"] for r in rows_]
+            home = (os.path.commonpath(dests) if len(dests) > 1
+                    else os.path.dirname(dests[0]))
+            by_dest[(cat, home)] = [len(rows_),
+                                    sum(r["size"] for r in rows_)]
+        add('<section><h2>Planned moves — review before applying</h2>'
+            '<p class="sub">Where everything will go. Nothing has moved yet;'
+            ' this previews the approved plan file.</p>'
+            '<div class="scroll"><table><tr><th>Category</th>'
+            '<th>Destination</th><th>Items</th><th>Size</th></tr>')
+        for (cat, dest), (n, b) in sorted(by_dest.items(),
+                                          key=lambda kv: -kv[1][1]):
+            add(f'<tr><td><span class="chip" style="background:'
+                f'{CAT_COLORS.get(cat, "#9CA3AF")}"></span>{html.escape(cat)}'
+                f'</td><td class="path">{html.escape(dest)}</td>'
+                f'<td data-s="{n}">{n:,}</td>'
+                f'<td data-s="{b}">{fmt_size(b)}</td></tr>')
+        add('</table></div>')
+        moves = sorted(plan_rows, key=lambda r: -r["size"])[:args.top_moves]
+        add(f'<h2>Largest planned moves (top {len(moves)})</h2>'
+            '<div class="scroll"><table><tr><th>Size</th><th>Kind</th>'
+            '<th>From</th><th>To</th></tr>')
+        for r in moves:
+            add(f'<tr><td data-s="{r["size"]}">{fmt_size(r["size"])}</td>'
+                f'<td>{html.escape(r["kind"])}</td>'
+                f'<td class="path">{html.escape(r["src"])}</td>'
+                f'<td class="path">{html.escape(r["dst"])}</td></tr>')
+        add('</table></div></section>')
 
     # ---- treemap
     dirs = top_dirs(con, args.top_dirs)
@@ -277,6 +324,9 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--top-dirs", type=int, default=30)
     ap.add_argument("--top-files", type=int, default=50)
+    ap.add_argument("--plan", help="move-plan CSV from file-organize;"
+                    " adds a planned-moves preview section")
+    ap.add_argument("--top-moves", type=int, default=200)
     args = ap.parse_args()
     con = sqlite3.connect(args.db)
     html_doc = build(con, args)
