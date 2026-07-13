@@ -1,6 +1,6 @@
 ---
 name: file-dedupe
-description: Find exact duplicate files across all cataloged drives using staged hashing (size, partial hash, full SHA-256), pick keepers, and quarantine the rest - never delete. Fourth stage of the file-org pipeline. Use when the user wants to deduplicate, find copies, or reclaim space.
+description: Find duplicate files across all cataloged drives - exact duplicates via staged hashing (size, partial hash, full SHA-256), duplicated whole folder trees, and near-duplicate photos via perceptual hashing (resized/re-saved copies of the same picture). Picks keepers and quarantines the rest - never deletes. Fourth stage of the file-org pipeline. Use when the user wants to deduplicate, find copies or similar photos, or reclaim space.
 ---
 
 # Deduplication
@@ -35,6 +35,15 @@ python3 scripts/dedupe.py --db ~/file-org/catalog.db scan
 #     Fast pass matches on names+sizes; --verify proves byte-identity:
 python3 scripts/dedupe.py --db ... dirs [--verify] \
     [--min-files 3] [--min-dir-bytes 10000000]
+
+# 1c. NEAR-DUPLICATE PHOTOS — same picture, different file (resized copies,
+#     re-saved exports, light edits). Needs Pillow (pip install Pillow);
+#     this is the pipeline's only non-stdlib feature. Keeper = highest
+#     resolution. Plan CSV is dedupe.py-apply compatible, but ALWAYS have
+#     the user spot-check it: matches are visual, not byte-identical.
+python3 scripts/near_dupes.py --db ... scan
+python3 scripts/near_dupes.py --db ... plan --out ~/file-org/photo-dupes.csv \
+    [--distance 4]   # 0=strictest, 7=loosest
 
 # 2. Write a keeper/quarantine plan and print the summary:
 python3 scripts/dedupe.py --db ... plan --out ~/file-org/dedupe-plan.csv
