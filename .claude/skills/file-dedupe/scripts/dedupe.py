@@ -2,7 +2,9 @@
 """Staged duplicate detection + quarantine over the file-org catalog.
 
 Subcommands:
-  scan   hash size-collision candidates (quick 64KB hash, then full SHA-256)
+  scan   hash size-collision candidates (quick 64KB hash, then full SHA-256;
+         parallel across --workers threads, with progress + ETA)
+  dirs   find whole directory trees duplicated elsewhere (copied backups)
   plan   build keeper/quarantine plan CSV from dup groups
   apply  move quarantined files (same-drive rename) per approved plan
   undo   reverse an apply using its journal
@@ -19,6 +21,7 @@ import sqlite3
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
 QUICK_BYTES = 65536
 QUARANTINE = "_Quarantine_Duplicates"
@@ -59,25 +62,55 @@ def candidates_where(args, alias=""):
     return where, params
 
 
+def parallel_hash(con, rows, column, quick, workers):
+    """Hash rows [(id, path, size)] on a thread pool, write results to
+    files.<column> in batches, print progress with ETA."""
+    if not rows:
+        return
+    total_b = sum(min(r[2], QUICK_BYTES) if quick else r[2] for r in rows)
+    done_b = 0
+    t0 = time.time()
+
+    def work(r):
+        fid, path, size = r
+        try:
+            return fid, hash_file(path, quick=quick), size
+        except OSError as e:
+            print(f"  ERR {path}: {e}", file=sys.stderr)
+            return fid, None, size
+
+    batch = []
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for i, (fid, digest, size) in enumerate(ex.map(work, rows), 1):
+            done_b += min(size, QUICK_BYTES) if quick else size
+            if digest:
+                batch.append((digest, fid))
+            if len(batch) >= 500:
+                con.executemany(
+                    f"UPDATE files SET {column}=? WHERE id=?", batch)
+                con.commit()
+                batch.clear()
+            if i % 2000 == 0 or (not quick and done_b and
+                                 done_b % (10 << 30) < size):
+                rate = done_b / max(time.time() - t0, 0.1)
+                eta = (total_b - done_b) / max(rate, 1)
+                print(f"  {i:,}/{len(rows):,} files,"
+                      f" {done_b / 1e9:.1f}/{total_b / 1e9:.1f} GB,"
+                      f" {rate / 1e6:.0f} MB/s, ETA {eta / 60:.0f} min",
+                      flush=True)
+    if batch:
+        con.executemany(f"UPDATE files SET {column}=? WHERE id=?", batch)
+    con.commit()
+
+
 def cmd_scan(con, args):
     where, params = candidates_where(args)
     rows = con.execute(
         f"SELECT id, path, size FROM files WHERE {where}"
         " AND quick_hash IS NULL", params).fetchall()
-    print(f"Quick-hashing {len(rows):,} size-collision candidates ...")
-    done = 0
-    for fid, path, _ in rows:
-        try:
-            qh = hash_file(path, quick=True)
-        except OSError as e:
-            print(f"  ERR {path}: {e}", file=sys.stderr)
-            continue
-        con.execute("UPDATE files SET quick_hash=? WHERE id=?", (qh, fid))
-        done += 1
-        if done % 500 == 0:
-            con.commit()
-            print(f"  {done:,}/{len(rows):,}", flush=True)
-    con.commit()
+    print(f"Quick-hashing {len(rows):,} size-collision candidates"
+          f" ({args.workers} workers) ...")
+    parallel_hash(con, rows, "quick_hash", True, args.workers)
 
     # Full-hash only files sharing (size, quick_hash) with another file.
     fwhere, fparams = candidates_where(args, alias="f")
@@ -89,20 +122,9 @@ def cmd_scan(con, args):
               ON f.size=g.size AND f.quick_hash=g.quick_hash
             WHERE f.full_hash IS NULL AND {fwhere}""", fparams).fetchall()
     total_b = sum(r[2] for r in rows)
-    print(f"Full-hashing {len(rows):,} files ({total_b / 1e9:.1f} GB) ...")
-    done_b = 0
-    for fid, path, size in rows:
-        try:
-            fh = hash_file(path)
-        except OSError as e:
-            print(f"  ERR {path}: {e}", file=sys.stderr)
-            continue
-        con.execute("UPDATE files SET full_hash=? WHERE id=?", (fh, fid))
-        done_b += size
-        if done_b and done_b % (10 << 30) < size:
-            con.commit()
-            print(f"  {done_b / 1e9:.0f}/{total_b / 1e9:.0f} GB", flush=True)
-    con.commit()
+    print(f"Full-hashing {len(rows):,} files ({total_b / 1e9:.1f} GB,"
+          f" {args.workers} workers) ...")
+    parallel_hash(con, rows, "full_hash", False, args.workers)
     groups = con.execute(
         "SELECT COUNT(*) FROM (SELECT full_hash FROM files"
         " WHERE full_hash IS NOT NULL AND unit_id IS NULL"
@@ -167,6 +189,116 @@ def cmd_plan(con, args):
               f"  keep: {keeper}")
     print("\nReview/edit the CSV (change 'quarantine' to 'keep' to spare a"
           " file), then run 'apply'.")
+
+
+def cmd_dirs(con, args):
+    """Find whole directory trees duplicated elsewhere (copied backups).
+
+    Signature of a dir = hash of its sorted contents: (name, size, full_hash)
+    for files, (name, subtree-signature) for subdirs. Candidate groups are
+    matched on names+sizes first; --verify full-hashes their files so the
+    match is proven byte-identical.
+    """
+    dir_files = defaultdict(list)
+    for path, size, fh in con.execute(
+            "SELECT path, size, full_hash FROM files WHERE is_symlink=0"):
+        dir_files[os.path.dirname(path)].append(
+            (os.path.basename(path), size, fh))
+    all_dirs = set()
+    for d in dir_files:
+        while d and d not in all_dirs:
+            all_dirs.add(d)
+            parent = os.path.dirname(d)
+            if parent == d:
+                break
+            d = parent
+    subdirs = defaultdict(list)
+    for d in all_dirs:
+        p = os.path.dirname(d)
+        if p != d and p in all_dirs:
+            subdirs[p].append(d)
+
+    def compute_sigs(use_hashes):
+        sigs = {}
+        # a parent is always a strict prefix of its children, so processing
+        # longest paths first guarantees children are computed before parents
+        for d in sorted(all_dirs, key=len, reverse=True):
+            entries = []
+            total = 0
+            count = 0
+            for name, size, fh in dir_files.get(d, ()):
+                entries.append(("f", name, size, fh if use_hashes else ""))
+                total += size
+                count += 1
+            for sd in subdirs.get(d, ()):
+                s2, b2, c2 = sigs[sd]
+                entries.append(("d", os.path.basename(sd), b2, s2))
+                total += b2
+                count += c2
+            h = hashlib.sha256(repr(sorted(entries)).encode()).hexdigest()
+            sigs[d] = (h, total, count)
+        return sigs
+
+    def group(sigs):
+        by_sig = defaultdict(list)
+        for d, (s, total, count) in sigs.items():
+            if count >= args.min_files and total >= args.min_dir_bytes:
+                by_sig[(s, total, count)].append(d)
+        groups = {k: v for k, v in by_sig.items() if len(v) > 1}
+        # keep only maximal trees: drop a group if every member sits inside
+        # a member of another (larger) reported group
+        reported = []
+        covered = set()
+        for (s, total, count), dirs in sorted(
+                groups.items(), key=lambda kv: -kv[0][1]):
+            if all(any(d.startswith(c + os.sep) for c in covered)
+                   for d in dirs):
+                continue
+            reported.append((total, count, sorted(dirs)))
+            covered.update(dirs)
+        return reported
+
+    sigs = compute_sigs(use_hashes=False)
+    candidates = group(sigs)
+    if args.verify and candidates:
+        need = []
+        for _, _, dirs in candidates:
+            for d in dirs:
+                like = d.rstrip(os.sep) + os.sep + "%"
+                need += con.execute(
+                    "SELECT id, path, size FROM files WHERE full_hash IS NULL"
+                    " AND is_symlink=0 AND (path LIKE ? OR path=?)",
+                    (like, d)).fetchall()
+        need = list({r[0]: r for r in need}.values())
+        print(f"Verifying: full-hashing {len(need):,} files"
+              f" ({sum(r[2] for r in need) / 1e9:.1f} GB) ...")
+        parallel_hash(con, need, "full_hash", False, args.workers)
+        dir_files.clear()
+        for path, size, fh in con.execute(
+                "SELECT path, size, full_hash FROM files WHERE is_symlink=0"):
+            dir_files[os.path.dirname(path)].append(
+                (os.path.basename(path), size, fh))
+        candidates = group(compute_sigs(use_hashes=True))
+
+    label = "verified byte-identical" if args.verify else \
+        "matched on names+sizes (run with --verify to prove)"
+    print(f"\n=== Duplicate directory trees — {label} ===")
+    if not candidates:
+        print("  none found at current thresholds"
+              f" (min {args.min_files} files, {args.min_dir_bytes} bytes)")
+        return
+    wasted = 0
+    for total, count, dirs in candidates:
+        wasted += total * (len(dirs) - 1)
+        print(f"\n  {total / 1e9:.2f} GB x {len(dirs)} copies"
+              f" ({count:,} files each):")
+        for d in dirs:
+            print(f"    {d}")
+    print(f"\nTotal reclaimable if one copy of each is kept:"
+          f" {wasted / 1e9:.2f} GB")
+    print("Review with the user, then either quarantine via the file-level"
+          " plan/apply flow, or move redundant trees to Archive with"
+          " file-organize.")
 
 
 def find_root_dir(con, label):
@@ -244,8 +376,16 @@ def main():
     ap.add_argument("--db", required=True)
     ap.add_argument("--min-size", type=int, default=1_000_000)
     ap.add_argument("--category")
+    ap.add_argument("--workers", type=int,
+                    default=min(8, os.cpu_count() or 4),
+                    help="hashing threads (default: min(8, cpu count))")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("scan")
+    p = sub.add_parser("dirs")
+    p.add_argument("--verify", action="store_true",
+                   help="full-hash candidate trees to prove byte-identity")
+    p.add_argument("--min-files", type=int, default=3)
+    p.add_argument("--min-dir-bytes", type=int, default=10_000_000)
     p = sub.add_parser("plan")
     p.add_argument("--out", required=True)
     p = sub.add_parser("apply")
@@ -255,7 +395,7 @@ def main():
     p.add_argument("--journal", required=True)
     args = ap.parse_args()
     con = connect(args.db)
-    {"scan": cmd_scan, "plan": cmd_plan,
+    {"scan": cmd_scan, "dirs": cmd_dirs, "plan": cmd_plan,
      "apply": cmd_apply, "undo": cmd_undo}[args.cmd](con, args)
     con.close()
 

@@ -19,9 +19,16 @@ Reads the catalog produced by `drive-inventory` and writes two things back:
 ```bash
 python3 scripts/classify.py --db ~/file-org/catalog.db          # classify all
 python3 scripts/classify.py --db ~/file-org/catalog.db --report # print result
+python3 scripts/classify.py --db ... --exif   # also read photo dates (below)
 ```
 
 Classification is idempotent — safe to re-run after a re-scan.
+
+`--exif` additionally reads EXIF capture dates from JPEG/TIFF images
+(stdlib-only parser, reads at most 64 KB per file) into `files.media_year`,
+which lets `file-organize` sort photos into `Photos/<year>/...` via its
+`year_subfolders` config. Use it when the user wants photos organized by
+year; skip it otherwise — it opens every image once.
 
 ## How it decides (order matters)
 

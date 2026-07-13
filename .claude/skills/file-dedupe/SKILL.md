@@ -26,8 +26,15 @@ in the catalog, so re-runs never re-hash unchanged files.
 ## Usage
 
 ```bash
-# 1. Hash candidates and build duplicate groups (read-only w.r.t. disk):
+# 1. Hash candidates and build duplicate groups (read-only w.r.t. disk).
+#    Hashing runs in parallel (--workers, default min(8, cpus)) and prints
+#    throughput + ETA, so multi-TB scans are predictable:
 python3 scripts/dedupe.py --db ~/file-org/catalog.db scan
+
+# 1b. Find whole duplicated DIRECTORY TREES (copied backup folders etc.).
+#     Fast pass matches on names+sizes; --verify proves byte-identity:
+python3 scripts/dedupe.py --db ... dirs [--verify] \
+    [--min-files 3] [--min-dir-bytes 10000000]
 
 # 2. Write a keeper/quarantine plan and print the summary:
 python3 scripts/dedupe.py --db ... plan --out ~/file-org/dedupe-plan.csv
@@ -57,7 +64,10 @@ by editing the CSV before `apply`:
 ## Workflow
 
 1. `scan`, then `plan`, then show the user: number of groups, reclaimable
-   bytes, top 20 largest groups.
+   bytes, top 20 largest groups. On drives full of old backups, also run
+   `dirs --verify` — one duplicated backup *tree* often explains more wasted
+   space than thousands of individual file matches, and "these two folders
+   are identical" is far easier for the user to act on.
 2. Let them adjust (edit CSV rows from `quarantine` to `keep`, or restrict
    with `--category`), then `apply`.
 3. Re-run `storage-report` so they see the reclaimed space.

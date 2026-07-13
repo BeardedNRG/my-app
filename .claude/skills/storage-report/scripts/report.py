@@ -127,8 +127,9 @@ def build(con, args):
             for kind, path, n, b in units:
                 add(f'<tr><td><span class="chip" style="background:'
                     f'{CAT_COLORS.get(kind, "#9CA3AF")}"></span>'
-                    f'{html.escape(kind)}</td><td>{fmt_size(b)}</td>'
-                    f'<td>{(n or 0):,}</td>'
+                    f'{html.escape(kind)}</td>'
+                    f'<td data-s="{b or 0}">{fmt_size(b)}</td>'
+                    f'<td data-s="{n or 0}">{(n or 0):,}</td>'
                     f'<td class="path">{html.escape(path)}</td></tr>')
             add('</table></div></section>')
 
@@ -139,7 +140,8 @@ def build(con, args):
     add('<section><h2>Largest files</h2><div class="scroll"><table>'
         '<tr><th>Size</th><th>Category</th><th>Path</th></tr>')
     for path, size, cat in largest:
-        add(f'<tr><td>{fmt_size(size)}</td><td>{html.escape(cat or "-")}</td>'
+        add(f'<tr><td data-s="{size}">{fmt_size(size)}</td>'
+            f'<td>{html.escape(cat or "-")}</td>'
             f'<td class="path">{html.escape(path)}</td></tr>')
     add('</table></div></section>')
 
@@ -150,8 +152,9 @@ def build(con, args):
             '<div class="scroll"><table><tr><th>Wasted</th><th>Copies</th>'
             '<th>Each</th><th>Example path</th></tr>')
         for _, size, n, p in dup_groups[:40]:
-            add(f'<tr><td>{fmt_size(size * (n - 1))}</td><td>{n}</td>'
-                f'<td>{fmt_size(size)}</td>'
+            add(f'<tr><td data-s="{size * (n - 1)}">'
+                f'{fmt_size(size * (n - 1))}</td><td data-s="{n}">{n}</td>'
+                f'<td data-s="{size}">{fmt_size(size)}</td>'
                 f'<td class="path">{html.escape(p)}</td></tr>')
         add('</table></div></section>')
 
@@ -193,6 +196,9 @@ td.path{font-family:ui-monospace,monospace;font-size:12px;max-width:560px;
  overflow:hidden;text-overflow:ellipsis}
 .chip{display:inline-block;width:9px;height:9px;border-radius:3px;
  margin-right:6px}
+.flt{display:block;margin:0 0 8px;padding:6px 10px;font:13px system-ui;
+ color:var(--fg);background:var(--card);border:1px solid var(--line);
+ border-radius:7px;width:min(320px,100%)}
 #treemap{position:relative;width:100%;height:420px;background:var(--card);
  border-radius:10px;overflow:hidden}
 .tm{position:absolute;overflow:hidden;border:1px solid var(--bg);
@@ -235,6 +241,32 @@ __BODY__
  }
  layout(items.sort((a,b)=>b.size-a.size),0,0,W,H,W>H);
 })();
+// sortable table headers (numeric via data-s, else text)
+document.querySelectorAll('table').forEach(tb=>{
+ const head=tb.rows[0];if(!head)return;
+ [...head.cells].forEach((th,ci)=>{
+  th.title='click to sort';th.style.cursor='pointer';
+  th.addEventListener('click',()=>{
+   const dir=th.dataset.dir=th.dataset.dir==='d'?'a':'d';
+   const rows=[...tb.rows].slice(1);
+   rows.sort((r1,r2)=>{
+    const c1=r1.cells[ci],c2=r2.cells[ci];
+    const a=c1.dataset.s!==undefined?+c1.dataset.s:c1.textContent.trim(),
+          b=c2.dataset.s!==undefined?+c2.dataset.s:c2.textContent.trim();
+    const cmp=(typeof a==='number'&&typeof b==='number')?a-b
+      :String(a).localeCompare(String(b));
+    return dir==='d'?-cmp:cmp});
+   rows.forEach(r=>tb.appendChild(r))});});});
+// live text filter above every table
+document.querySelectorAll('.scroll').forEach(w=>{
+ const t=w.querySelector('table');if(!t)return;
+ const inp=document.createElement('input');
+ inp.placeholder='filter rows…';inp.className='flt';
+ w.parentNode.insertBefore(inp,w);
+ inp.addEventListener('input',()=>{
+  const q=inp.value.toLowerCase();
+  [...t.rows].slice(1).forEach(r=>{
+   r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'});});});
 </script>
 """
 

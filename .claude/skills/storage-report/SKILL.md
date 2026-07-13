@@ -31,6 +31,10 @@ publish as an Artifact if they want a shareable page).
 - **Duplicate groups** — top reclaimable groups (only if `file-dedupe scan`
   has populated hashes).
 
+All tables are interactive: click any column header to sort (sizes sort
+numerically), and each table has a live text filter box for narrowing by
+path, category, or name.
+
 The report degrades gracefully: sections whose data isn't in the catalog yet
 (categories, hashes) are simply omitted, so it works right after a bare
 inventory scan too.

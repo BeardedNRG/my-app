@@ -36,7 +36,8 @@ JSON config:
     "backup":     "/mnt/e/Archive/old-backups",
     "photo_library": "/mnt/d/Media/Photos/Libraries"
   },
-  "keep_subtree_below": "/mnt/d/Media/Video"
+  "keep_subtree_below": "/mnt/d/Media/Video",
+  "year_subfolders": ["image"]
 }
 ```
 
@@ -47,6 +48,9 @@ JSON config:
   structure under the destination (good for already-organized media);
   otherwise files land in `<dest>/<source-drive-label>/<original parent>/`
   so nothing gets flattened into a 50,000-file soup.
+- `year_subfolders` lists categories to group by year instead of by drive:
+  `<dest>/<year>/<original parent>/`. The year comes from EXIF capture date
+  when `file-classify --exif` has run, else the file's modification year.
 
 ## Step 2 — plan (touches nothing)
 
