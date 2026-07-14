@@ -142,6 +142,47 @@ function buildChip(svg, key, label, cfg) {
   flowEls[key + "Sub"].textContent = label;
 }
 
+let scene3d = null;                       // loaded 3D module (or null)
+let flowView = localStorage.getItem("flowView") || "3d";
+let hasCustomScene = false;
+
+async function initFlowView() {
+  await buildFlow();                      // SVG scene always available
+  if (hasCustomScene && !localStorage.getItem("flowView")) flowView = "2d";
+  if (flowView === "3d") {
+    try {
+      const mod = await import("/static/scene3d.js");
+      if (mod.isSupported()) {
+        mod.init($("scene3d"));
+        scene3d = mod;
+      }
+    } catch (e) { console.warn("3D scene unavailable, using 2D:", e); }
+  }
+  if (!scene3d) flowView = "2d";
+  applyFlowView();
+  $("btn-view").addEventListener("click", async () => {
+    if (flowView === "2d" && !scene3d) {
+      try {
+        const mod = await import("/static/scene3d.js");
+        if (mod.isSupported()) { mod.init($("scene3d")); scene3d = mod; }
+      } catch (e) { return; }
+      if (!scene3d) return;
+    }
+    flowView = flowView === "3d" ? "2d" : "3d";
+    localStorage.setItem("flowView", flowView);
+    applyFlowView();
+    if (lastSnap) updateFlow(lastSnap);
+  });
+}
+
+function applyFlowView() {
+  const is3d = flowView === "3d" && !!scene3d;
+  $("scene3d").classList.toggle("hidden", !is3d);
+  $("flow").classList.toggle("hidden", is3d);
+  $("btn-view").textContent = is3d ? "2D view" : "3D view";
+  if (scene3d) scene3d.setActive(is3d);
+}
+
 async function buildFlow() {
   const svg = $("flow");
   buildDefs(svg);
@@ -149,7 +190,7 @@ async function buildFlow() {
   let scene = DEFAULT_SCENE;
   try {
     const custom = await api("/api/scene");
-    if (custom) scene = { ...DEFAULT_SCENE, ...custom };
+    if (custom) { scene = { ...DEFAULT_SCENE, ...custom }; hasCustomScene = true; }
   } catch (e) { /* no custom scene — use illustration */ }
 
   el("rect", { x: 0, y: 0, width: 800, height: 460, rx: 14, fill: "url(#sky)" }, svg);
@@ -181,7 +222,11 @@ function setFlow(key, watts, reverse) {
   line.style.animationDuration = `${Math.max(0.4, 1.5 - Math.abs(watts) / 4500)}s`;
 }
 
+let lastSnap = null;
+
 function updateFlow(s) {
+  lastSnap = s;
+  if (scene3d && flowView === "3d") scene3d.update(s);
   flowEls.solarVal.textContent = fmtKw(s.ppv);
   flowEls.batteryVal.textContent = `${s.soc.toFixed(0)}%  ${
     s.pbat < -40 ? "▲ " + fmtKw(-s.pbat) : s.pbat > 40 ? "▼ " + fmtKw(s.pbat) : "idle"}`;
@@ -506,7 +551,7 @@ function tickClock() {
 
 async function init() {
   chartDefaults();
-  await buildFlow();
+  await initFlowView();
   tickClock(); setInterval(tickClock, 1000);
 
   $("btn-tariff").addEventListener("click", openTariffModal);

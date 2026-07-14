@@ -39,7 +39,7 @@ Open <http://localhost:8410>. With no credentials in `.env` it runs in
 
 | Panel | What it shows |
 |---|---|
-| Live power flow | A night-time isometric house scene: data chips pinned to the roof array, battery cabinet, power pole and house, with animated beads of light along each active flow. Windows glow with house load. |
+| Live power flow | A real-time **interactive 3D night scene** (three.js) — drag to orbit around the house. Glowing particle streams flow along the wires between roof array, battery cabinet, power pole and inverter; stream speed/size scales with watts, windows glow with house load, the battery LED shows charge direction. A `2D view` button swaps to a flat illustrated scene (or photo mode). |
 | Stat tiles | Instant solar W, battery SOC, house draw, grid import/export |
 | Today — power | 5-minute curves for all four channels |
 | Battery charge | Today's SOC curve |

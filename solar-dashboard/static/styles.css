@@ -124,6 +124,37 @@ body {
 
 /* ---------- house scene ---------- */
 #flow { width: 100%; height: auto; display: block; border-radius: 12px; }
+#flow.hidden { display: none; }
+.head-tools { display: flex; align-items: center; gap: 10px; }
+
+.scene3d {
+  position: relative; width: 100%; aspect-ratio: 800 / 460;
+  border-radius: 12px; overflow: hidden; background: #0e0d1d;
+  cursor: grab;
+}
+.scene3d:active { cursor: grabbing; }
+.scene3d.hidden { display: none; }
+.scene3d canvas { display: block; width: 100% !important; height: 100% !important; }
+.chip3d {
+  position: absolute; transform: translate(-50%, -115%);
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(14, 13, 29, 0.85);
+  border: 1px solid rgba(200, 195, 255, 0.22);
+  border-radius: 12px; padding: 6px 12px;
+  pointer-events: none; backdrop-filter: blur(3px);
+  white-space: nowrap;
+}
+.chip3d i {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  box-shadow: 0 0 9px 1px currentColor;
+}
+.chip3d .cv {
+  color: var(--ink); font-size: 13px; font-weight: 800; display: block;
+  font-variant-numeric: tabular-nums;
+}
+.chip3d .cs {
+  color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+}
 .flow-under {
   fill: none; stroke-width: 6; stroke-linecap: round;
   opacity: 0; transition: opacity 0.6s;

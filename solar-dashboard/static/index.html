@@ -27,8 +27,12 @@
   <section class="card flow-card">
     <div class="card-head">
       <h2>Live power flow</h2>
-      <span id="last-update" class="muted"></span>
+      <span class="head-tools">
+        <span id="last-update" class="muted"></span>
+        <button id="btn-view" class="ghost-btn">2D view</button>
+      </span>
     </div>
+    <div id="scene3d" class="scene3d hidden"></div>
     <svg id="flow" viewBox="0 0 800 460" role="img" aria-label="Live power flow between solar, battery, home and grid"></svg>
   </section>
 
@@ -172,6 +176,7 @@
   </form>
 </dialog>
 
+<script type="importmap">{"imports": {"three": "/static/vendor/three.module.js"}}</script>
 <script src="/static/chart.umd.js"></script>
 <script src="/static/app.js"></script>
 </body>
