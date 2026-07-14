@@ -303,6 +303,16 @@ async def insights():
     return tips
 
 
+@app.get("/api/scene")
+async def scene():
+    """Custom photo-mode scene config, or null for the illustrated house."""
+    p = ROOT / "static" / "scene.json"
+    if p.exists():
+        import json
+        return json.loads(p.read_text())
+    return None
+
+
 # ---------- static frontend ----------
 
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")

@@ -26,7 +26,10 @@ async function api(path, opts) {
   return r.json();
 }
 
-/* ---------- power flow SVG ---------- */
+/* ---------- house scene (live power flow) ----------
+   Default: illustrated isometric night house.
+   Photo mode: put house.jpg + scene.json in static/ (see scene.example.json)
+   and the chips/flows render over your real house instead. */
 
 const NS = "http://www.w3.org/2000/svg";
 const flowEls = {};
@@ -38,67 +41,162 @@ function el(name, attrs, parent) {
   return e;
 }
 
-function buildFlow() {
-  const svg = $("flow");
-  const nodes = {
-    solar:   { x: 250, y: 14,  w: 148, h: 66, label: "Solar",   icon: "☀" },
-    battery: { x: 16,  y: 138, w: 158, h: 66, label: "Battery", icon: "🔋" },
-    home:    { x: 466, y: 138, w: 158, h: 66, label: "Home",    icon: "⌂" },
-    grid:    { x: 250, y: 262, w: 148, h: 66, label: "Grid",    icon: "⚡" },
-  };
-  const wires = {
-    solar:   "M 324 80 L 324 144",
-    battery: "M 174 171 L 296 171",
-    home:    "M 352 171 L 466 171",
-    grid:    "M 324 262 L 324 198",
-  };
-  // static wires underneath
-  for (const d of Object.values(wires)) el("path", { d, class: "wire" }, svg);
-  // animated flow lines
-  for (const [k, d] of Object.entries(wires)) {
-    flowEls[k] = el("path", { d, class: "flowline", stroke: COLORS[k === "grid" ? "grid" : k] }, svg);
-  }
-  // hub
-  el("circle", { cx: 324, cy: 171, r: 27, class: "hub" }, svg);
-  el("circle", { cx: 324, cy: 171, r: 27, class: "hub-pulse" }, svg);
-  el("circle", { cx: 324, cy: 171, r: 7, class: "hub-core" }, svg);
-  const hubTxt = el("text", { x: 324, y: 214, "text-anchor": "middle", class: "node-sub" }, svg);
-  hubTxt.textContent = "SMILE-M5 · 5 kW";
+// roof surface parametrization: s along front-left edge, t along back-left edge
+const ROOF = { o: [280, 208], u: [140, 60], v: [140, -60] };
+const roofPt = (s, t) => [
+  ROOF.o[0] + ROOF.u[0] * s + ROOF.v[0] * t,
+  ROOF.o[1] + ROOF.u[1] * s + ROOF.v[1] * t,
+];
+const poly = (pts) => pts.map((p) => p.join(",")).join(" ");
 
-  for (const [k, n] of Object.entries(nodes)) {
-    el("rect", { x: n.x, y: n.y, width: n.w, height: n.h, rx: 12, class: "node-box" }, svg);
-    const t1 = el("text", { x: n.x + 14, y: n.y + 22, class: "node-label" }, svg);
-    t1.textContent = `${n.icon} ${n.label}`;
-    flowEls[k + "Val"] = el("text", { x: n.x + 14, y: n.y + 45, class: "node-value" }, svg);
-    flowEls[k + "Sub"] = el("text", { x: n.x + 14, y: n.y + 59, class: "node-sub" }, svg);
-  }
+function buildDefs(svg) {
+  const defs = el("defs", {}, svg);
+  const sky = el("radialGradient", { id: "sky", cx: "50%", cy: "20%", r: "90%" }, defs);
+  el("stop", { offset: "0%", "stop-color": "#31245c" }, sky);
+  el("stop", { offset: "55%", "stop-color": "#1c1836" }, sky);
+  el("stop", { offset: "100%", "stop-color": "#100e1e" }, sky);
+  const glow = el("filter", { id: "glow", x: "-60%", y: "-60%", width: "220%", height: "220%" }, defs);
+  el("feGaussianBlur", { stdDeviation: "3.2", result: "b" }, glow);
+  const m = el("feMerge", {}, glow);
+  el("feMergeNode", { in: "b" }, m);
+  el("feMergeNode", { in: "SourceGraphic" }, m);
 }
 
-function setFlow(line, watts, reverse) {
+function buildHouse(svg) {
+  const g = el("g", {}, svg);
+  // stars
+  const rng = (n) => (Math.sin(n * 127.1) * 43758.5453) % 1;
+  for (let i = 0; i < 42; i++) {
+    const x = Math.abs(rng(i)) * 790 + 5, y = Math.abs(rng(i + 99)) * 190 + 8;
+    el("circle", { cx: x, cy: y, r: Math.abs(rng(i + 7)) * 1.1 + 0.3, fill: "#cdc8ff", opacity: (0.15 + Math.abs(rng(i + 31)) * 0.4).toFixed(2) }, g);
+  }
+  el("circle", { cx: 706, cy: 64, r: 22, fill: "#e8e4ff", opacity: 0.85, filter: "url(#glow)" }, g); // moon
+  el("ellipse", { cx: 420, cy: 392, rx: 330, ry: 58, fill: "rgba(180,170,255,0.045)" }, g); // ground
+
+  // walls  (footprint F(280,330) C(420,390) R(560,330) B(420,270), height 90)
+  el("polygon", { points: "280,330 420,390 420,300 280,240", fill: "#232338", stroke: "#3a3a58", "stroke-width": 1 }, g); // left
+  el("polygon", { points: "420,390 560,330 560,240 420,300", fill: "#2c2c46", stroke: "#3a3a58", "stroke-width": 1 }, g); // right
+  // roof slab (slightly proud of the walls)
+  el("polygon", { points: poly([roofPt(-0.06, -0.06), roofPt(1.06, -0.06), roofPt(1.06, 1.06), roofPt(-0.06, 1.06)]), fill: "#1d1d32", stroke: "#44446a", "stroke-width": 1.2 }, g);
+
+  // solar array — 3 rows × 4 cols on the roof (Dave's near-flat mount)
+  flowEls.panels = el("g", {}, g);
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 4; c++) {
+      const s0 = 0.08 + c * 0.215, t0 = 0.12 + r * 0.27;
+      el("polygon", {
+        points: poly([roofPt(s0, t0), roofPt(s0 + 0.19, t0), roofPt(s0 + 0.19, t0 + 0.23), roofPt(s0, t0 + 0.23)]),
+        fill: "#14315c", stroke: "#3987e5", "stroke-width": 0.8, opacity: 0.9,
+      }, flowEls.panels);
+    }
+  }
+
+  // door + windows (windows glow with house load)
+  el("polygon", { points: "388,362 412,372 412,318 388,308", fill: "#191928", stroke: "#3a3a58" }, g);
+  flowEls.windows = el("g", {}, g);
+  el("polygon", { points: "300,308 336,323 336,285 300,270", fill: "#ffb84d", stroke: "#3a3a58" }, flowEls.windows);
+  el("polygon", { points: "455,345 500,326 500,288 455,307", fill: "#ffb84d", stroke: "#3a3a58" }, flowEls.windows);
+  flowEls.windows.style.opacity = 0.25;
+  flowEls.windows.style.filter = "url(#glow)";
+  flowEls.windows.style.transition = "opacity 1s";
+
+  // battery cabinet (right of house)
+  el("polygon", { points: "612,310 640,324 668,310 640,296", fill: "#20203a", stroke: "#3a3a58" }, g);
+  el("polygon", { points: "612,310 640,324 640,368 612,354", fill: "#191930", stroke: "#3a3a58" }, g);
+  el("polygon", { points: "640,324 668,310 668,354 640,368", fill: "#242442", stroke: "#3a3a58" }, g);
+  flowEls.battLed = el("polygon", { points: "646,327 662,335 662,340 646,332", fill: COLORS.battery, filter: "url(#glow)" }, g);
+
+  // power pole (left)
+  el("line", { x1: 110, y1: 150, x2: 110, y2: 368, stroke: "#4a4a68", "stroke-width": 5, "stroke-linecap": "round" }, g);
+  el("line", { x1: 82, y1: 172, x2: 138, y2: 172, stroke: "#4a4a68", "stroke-width": 4, "stroke-linecap": "round" }, g);
+  el("line", { x1: 88, y1: 196, x2: 132, y2: 196, stroke: "#4a4a68", "stroke-width": 3.5, "stroke-linecap": "round" }, g);
+  el("circle", { cx: 96, cy: 168, r: 2.5, fill: "#8a86c9" }, g);
+  el("circle", { cx: 124, cy: 168, r: 2.5, fill: "#8a86c9" }, g);
+  el("path", { d: "M 124 172 Q 200 235 281 246", fill: "none", stroke: "#3d3d5c", "stroke-width": 1.6 }, g); // service wire
+}
+
+// scene geometry: flow paths + chip positions (illustrated default)
+const DEFAULT_SCENE = {
+  photo: null,
+  flows: {
+    grid:    "M 124 172 Q 200 235 281 246",
+    solar:   "M 400 226 C 410 250 415 265 418 292",
+    battery: "M 626 332 C 585 330 570 315 545 300",
+    home:    "M 420 320 C 400 345 360 372 300 386",
+  },
+  chips: {
+    solar:   { x: 452, y: 96,  anchor: [420, 208] },
+    grid:    { x: 30,  y: 84,  anchor: [110, 155] },
+    battery: { x: 636, y: 196, anchor: [648, 300] },
+    home:    { x: 176, y: 396, anchor: [300, 386] },
+  },
+};
+
+function buildChip(svg, key, label, cfg) {
+  const g = el("g", { class: "chip" }, svg);
+  el("line", { x1: cfg.x + 74, y1: cfg.y + 46, x2: cfg.anchor[0], y2: cfg.anchor[1], stroke: "rgba(200,195,255,0.25)", "stroke-width": 1, "stroke-dasharray": "2 3" }, g);
+  el("rect", { x: cfg.x, y: cfg.y, width: 148, height: 46, rx: 13, fill: "rgba(16,15,30,0.82)", stroke: "rgba(200,195,255,0.22)", "stroke-width": 1 }, g);
+  el("circle", { cx: cfg.x + 15, cy: cfg.y + 23, r: 4, fill: COLORS[key], filter: "url(#glow)" }, g);
+  flowEls[key + "Val"] = el("text", { x: cfg.x + 27, y: cfg.y + 20, class: "chip-value" }, g);
+  flowEls[key + "Sub"] = el("text", { x: cfg.x + 27, y: cfg.y + 36, class: "chip-sub" }, g);
+  flowEls[key + "Sub"].textContent = label;
+}
+
+async function buildFlow() {
+  const svg = $("flow");
+  buildDefs(svg);
+
+  let scene = DEFAULT_SCENE;
+  try {
+    const custom = await api("/api/scene");
+    if (custom) scene = { ...DEFAULT_SCENE, ...custom };
+  } catch (e) { /* no custom scene — use illustration */ }
+
+  el("rect", { x: 0, y: 0, width: 800, height: 460, rx: 14, fill: "url(#sky)" }, svg);
+  if (scene.photo) {
+    el("image", { href: scene.photo, x: 0, y: 0, width: 800, height: 460, preserveAspectRatio: "xMidYMid slice", opacity: 0.92 }, svg);
+    el("rect", { x: 0, y: 0, width: 800, height: 460, rx: 14, fill: "rgba(10,8,24,0.35)" }, svg);
+  } else {
+    buildHouse(svg);
+  }
+
+  for (const [k, d] of Object.entries(scene.flows)) {
+    el("path", { d, class: "flow-under", stroke: COLORS[k === "grid" ? "grid" : k] }, svg);
+    flowEls[k] = el("path", { d, class: "flowline", stroke: COLORS[k === "grid" ? "grid" : k] }, svg);
+  }
+  buildChip(svg, "solar", "SOLAR", scene.chips.solar);
+  buildChip(svg, "grid", "GRID", scene.chips.grid);
+  buildChip(svg, "battery", "BATTERY", scene.chips.battery);
+  buildChip(svg, "home", "LOAD", scene.chips.home);
+}
+
+function setFlow(key, watts, reverse) {
+  const line = flowEls[key];
+  const under = line.previousSibling;
   const on = Math.abs(watts) > 40;
   line.classList.toggle("on", on);
+  under.classList.toggle("on", on);
   line.classList.toggle("rev", !!reverse);
-  line.style.strokeWidth = (2 + Math.min(3.5, Math.abs(watts) / 1400)).toFixed(1);
-  line.style.animationDuration = `${Math.max(0.35, 1.4 - Math.abs(watts) / 5000)}s`;
+  line.style.strokeWidth = (2 + Math.min(3, Math.abs(watts) / 1600)).toFixed(1);
+  line.style.animationDuration = `${Math.max(0.4, 1.5 - Math.abs(watts) / 4500)}s`;
 }
 
 function updateFlow(s) {
   flowEls.solarVal.textContent = fmtKw(s.ppv);
-  flowEls.solarSub.textContent = s.ppv > 20 ? "generating" : "asleep";
-  flowEls.batteryVal.textContent = `${s.soc.toFixed(0)} %`;
-  flowEls.batterySub.textContent =
-    s.pbat < -40 ? `charging ${fmtKw(-s.pbat)}` :
-    s.pbat > 40 ? `discharging ${fmtKw(s.pbat)}` : "idle";
+  flowEls.batteryVal.textContent = `${s.soc.toFixed(0)}%  ${
+    s.pbat < -40 ? "▲ " + fmtKw(-s.pbat) : s.pbat > 40 ? "▼ " + fmtKw(s.pbat) : "idle"}`;
   flowEls.homeVal.textContent = fmtKw(s.pload);
-  flowEls.homeSub.textContent = "house load";
-  flowEls.gridVal.textContent = fmtKw(Math.abs(s.pgrid));
-  flowEls.gridSub.textContent =
-    s.pgrid > 40 ? "importing" : s.pgrid < -40 ? "exporting" : "balanced";
+  flowEls.gridVal.textContent = `${fmtKw(Math.abs(s.pgrid))} ${
+    s.pgrid > 40 ? "in" : s.pgrid < -40 ? "out" : ""}`;
 
-  setFlow(flowEls.solar, s.ppv, false);                    // solar → hub
-  setFlow(flowEls.battery, s.pbat, s.pbat < 0);            // hub ↔ battery
-  setFlow(flowEls.home, s.pload, false);                   // hub → home
-  setFlow(flowEls.grid, s.pgrid, s.pgrid < 0);             // grid ↔ hub
+  setFlow("solar", s.ppv, false);            // panels → house
+  setFlow("battery", s.pbat, s.pbat < 0);    // battery ↔ house
+  setFlow("home", s.pload, false);           // house → loads
+  setFlow("grid", s.pgrid, s.pgrid < 0);     // pole ↔ house
+
+  if (flowEls.windows) flowEls.windows.style.opacity = Math.min(0.95, 0.12 + s.pload / 3000);
+  if (flowEls.panels) flowEls.panels.style.opacity = s.ppv > 20 ? 1 : 0.55;
+  if (flowEls.battLed) flowEls.battLed.setAttribute("fill", s.pbat < -40 ? COLORS.battery : s.pbat > 40 ? COLORS.solar : "#4a4a68");
 }
 
 /* ---------- tiles ---------- */
@@ -408,7 +506,7 @@ function tickClock() {
 
 async function init() {
   chartDefaults();
-  buildFlow();
+  await buildFlow();
   tickClock(); setInterval(tickClock, 1000);
 
   $("btn-tariff").addEventListener("click", openTariffModal);

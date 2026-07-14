@@ -39,7 +39,7 @@ Open <http://localhost:8410>. With no credentials in `.env` it runs in
 
 | Panel | What it shows |
 |---|---|
-| Live power flow | Animated solar / battery / home / grid flows through the inverter |
+| Live power flow | A night-time isometric house scene: data chips pinned to the roof array, battery cabinet, power pole and house, with animated beads of light along each active flow. Windows glow with house load. |
 | Stat tiles | Instant solar W, battery SOC, house draw, grid import/export |
 | Today — power | 5-minute curves for all four channels |
 | Battery charge | Today's SOC curve |
@@ -47,6 +47,18 @@ Open <http://localhost:8410>. With no credentials in `.env` it runs in
 | Money | Saved today / 7 days / annual pace vs. your tariff (edit via `rates ✎`) |
 | Battery schedule | Reads & **writes** the AlphaESS charge/discharge config |
 | Insights | Auto-generated observations (self-sufficiency, export vs import economics) |
+
+### Photo mode — use a photo of YOUR house
+
+The illustrated house can be swapped for a real photo with the data chips
+and power lines drawn over it:
+
+1. Save a wide (~16:9) photo of your house as `static/house.jpg`.
+2. Copy `static/scene.example.json` to `static/scene.json`.
+3. Tweak the chip positions / flow paths in that file (all coordinates are
+   on an 800 × 460 grid over the image; instructions inside).
+
+Delete `static/scene.json` to return to the illustration.
 
 ⚠️ **"Apply to system" is real in live mode** — it updates your inverter's
 charge/discharge schedule via `updateChargeConfigInfo` /
