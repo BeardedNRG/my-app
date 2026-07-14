@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NRG Command Center</title>
+<link rel="stylesheet" href="/static/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="bolt">⚡</span>
+    <h1>NRG <span>COMMAND CENTER</span></h1>
+  </div>
+  <div class="topbar-right">
+    <span id="mode-badge" class="badge">…</span>
+    <span id="sys-sn" class="sn"></span>
+    <span id="clock" class="clock"></span>
+  </div>
+</header>
+
+<main class="grid">
+
+  <!-- Live power flow -->
+  <section class="card flow-card">
+    <div class="card-head">
+      <h2>Live power flow</h2>
+      <span id="last-update" class="muted"></span>
+    </div>
+    <svg id="flow" viewBox="0 0 640 340" role="img" aria-label="Live power flow between solar, battery, home and grid"></svg>
+  </section>
+
+  <!-- Stat tiles -->
+  <section class="tiles">
+    <div class="tile" id="tile-solar">
+      <div class="tile-label"><i class="dot dot-solar"></i>Solar</div>
+      <div class="tile-value" id="v-solar">—</div>
+      <div class="tile-sub" id="s-solar"></div>
+    </div>
+    <div class="tile" id="tile-batt">
+      <div class="tile-label"><i class="dot dot-batt"></i>Battery</div>
+      <div class="tile-value" id="v-batt">—</div>
+      <div class="socbar"><div id="socfill"></div></div>
+      <div class="tile-sub" id="s-batt"></div>
+    </div>
+    <div class="tile" id="tile-home">
+      <div class="tile-label"><i class="dot dot-home"></i>Home</div>
+      <div class="tile-value" id="v-home">—</div>
+      <div class="tile-sub" id="s-home"></div>
+    </div>
+    <div class="tile" id="tile-grid">
+      <div class="tile-label"><i class="dot dot-grid"></i>Grid</div>
+      <div class="tile-value" id="v-grid">—</div>
+      <div class="tile-sub" id="s-grid"></div>
+    </div>
+  </section>
+
+  <!-- Today power curve -->
+  <section class="card chart-card span8">
+    <div class="card-head">
+      <h2>Today — power</h2>
+      <span class="muted">watts, 5-min resolution</span>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-today"></canvas></div>
+  </section>
+
+  <!-- Money -->
+  <section class="card money-card span4">
+    <div class="card-head">
+      <h2>Money</h2>
+      <button id="btn-tariff" class="ghost-btn" title="Edit tariff">rates ✎</button>
+    </div>
+    <div class="hero-money">
+      <div class="hero-label">saved today</div>
+      <div class="hero-value" id="m-today">—</div>
+    </div>
+    <div class="money-row"><span>Last 7 days</span><strong id="m-week">—</strong></div>
+    <div class="money-row"><span>Annual pace</span><strong id="m-annual">—</strong></div>
+    <div class="money-row"><span>Export earned today</span><strong id="m-export">—</strong></div>
+    <div class="money-row muted-row"><span id="m-tariff-desc"></span></div>
+  </section>
+
+  <!-- Battery SOC today -->
+  <section class="card chart-card span4">
+    <div class="card-head"><h2>Battery charge — today</h2><span class="muted">%</span></div>
+    <div class="chart-wrap short"><canvas id="chart-soc"></canvas></div>
+  </section>
+
+  <!-- 14-day history -->
+  <section class="card chart-card span8">
+    <div class="card-head"><h2>Last 14 days — energy</h2><span class="muted">kWh per day</span></div>
+    <div class="chart-wrap"><canvas id="chart-history"></canvas></div>
+  </section>
+
+  <!-- Battery schedule -->
+  <section class="card span6">
+    <div class="card-head">
+      <h2>Battery schedule</h2>
+      <span class="muted">AlphaESS charge / discharge config</span>
+    </div>
+    <form id="battery-form" class="batt-form">
+      <fieldset>
+        <legend>Charge from grid</legend>
+        <label class="switch-row">
+          <input type="checkbox" id="bc-gridCharge"> Enabled
+        </label>
+        <div class="time-row">
+          <label>Window 1 <input type="time" id="bc-chaf1"> – <input type="time" id="bc-chae1"></label>
+        </div>
+        <div class="time-row">
+          <label>Window 2 <input type="time" id="bc-chaf2"> – <input type="time" id="bc-chae2"></label>
+        </div>
+        <label class="num-row">Stop charging at <input type="number" id="bc-batHighCap" min="10" max="100" step="1"> % SOC</label>
+      </fieldset>
+      <fieldset>
+        <legend>Discharge control</legend>
+        <label class="switch-row">
+          <input type="checkbox" id="bc-ctrDis"> Time-controlled discharge
+        </label>
+        <div class="time-row">
+          <label>Window 1 <input type="time" id="bc-disf1"> – <input type="time" id="bc-dise1"></label>
+        </div>
+        <div class="time-row">
+          <label>Window 2 <input type="time" id="bc-disf2"> – <input type="time" id="bc-dise2"></label>
+        </div>
+        <label class="num-row">Keep reserve <input type="number" id="bc-batUseCap" min="5" max="100" step="1"> % SOC</label>
+      </fieldset>
+      <div class="form-foot">
+        <span id="batt-note" class="muted"></span>
+        <button type="submit" class="primary-btn">Apply to system</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Insights -->
+  <section class="card span6">
+    <div class="card-head"><h2>Insights</h2><span class="muted">auto-generated from your data</span></div>
+    <ul id="insights" class="insights"></ul>
+  </section>
+
+</main>
+
+<footer class="statusbar">
+  <span id="f-mode"></span>
+  <span id="f-poll"></span>
+  <span id="f-err" class="err"></span>
+  <span class="spacer"></span>
+  <span>AlphaESS Open API · SMILE-M5 · 20 kWh</span>
+</footer>
+
+<!-- Tariff modal -->
+<dialog id="tariff-modal">
+  <form method="dialog" id="tariff-form">
+    <h3>Electricity rates</h3>
+    <label class="num-row">Mode
+      <select id="t-mode">
+        <option value="flat">Flat rate</option>
+        <option value="tou">Time of use</option>
+      </select>
+    </label>
+    <label class="num-row">Import rate <input type="number" id="t-flat" step="0.01" min="0"> $/kWh</label>
+    <label class="num-row">Feed-in tariff <input type="number" id="t-fit" step="0.01" min="0"> $/kWh</label>
+    <div id="tou-rows" class="tou-rows hidden">
+      <div class="tou-row tou-head"><span>Window</span><span>Start</span><span>End</span><span>$/kWh</span></div>
+    </div>
+    <div class="form-foot">
+      <button value="cancel" class="ghost-btn">Cancel</button>
+      <button value="save" id="t-save" class="primary-btn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/chart.umd.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
