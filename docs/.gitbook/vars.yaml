@@ -1,0 +1,5 @@
+version: "0.1"
+mode: P0_READONLY
+risk_baseline: "SAFE / NO AUTOMATION ACTIVE"
+architect: "Fable 5"
+operator: "Hermes"
