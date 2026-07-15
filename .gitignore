@@ -76,6 +76,11 @@ agenthub/agents/youtube/db
 # Build caches
 .cache/
 
+# Agent skill tooling (installed via `npx skills add`)
+.agents/
+.claude/
+skills-lock.json
+
 memory/test_credentials.md
 
 # Mobile development
