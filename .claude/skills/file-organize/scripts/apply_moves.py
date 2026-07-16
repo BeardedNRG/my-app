@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import time
 
@@ -91,7 +92,52 @@ def move_dir(src, dst, dry):
     return dst, "copied+verified"
 
 
+def gate_check(args):
+    """Mechanical interlocks: the plan must come from plan_moves.py on this
+    catalog, and a real apply must be preceded by a dry-run of the exact
+    same plan file. Logs this run's stage on success."""
+    con = sqlite3.connect(args.db)
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
+    h = sha256(args.plan) if os.path.exists(args.plan) else None
+    if h is None:
+        sys.exit(f"GATE BLOCKED: plan file not found: {args.plan}")
+
+    def known(*stages):
+        q = ",".join("?" * len(stages))
+        return con.execute(
+            f"SELECT 1 FROM pipeline_log WHERE stage IN ({q})"
+            " AND evidence=?", (*stages, h)).fetchone()
+
+    if not known("move_plan_hash", "move_plan_edited"):
+        if args.user_edited_plan:
+            con.execute("INSERT INTO pipeline_log VALUES("
+                        "'move_plan_edited',?,?)", (time.time(), h))
+            con.commit()
+            print("Plan re-registered as user-edited (audit-logged).")
+        else:
+            sys.exit(
+                "GATE BLOCKED: this plan was not produced by plan_moves.py"
+                " on this catalog (or was modified since).\nDo this first:"
+                " regenerate it with plan_moves.py, or - ONLY if the USER"
+                " edited it and approved the edits - re-run with"
+                " --user-edited-plan.\nThere is no other way through.")
+    if not args.dry_run and not known("move_dryrun"):
+        sys.exit(
+            "GATE BLOCKED: no dry-run has been done for this exact plan"
+            " file.\nDo this first: re-run with --dry-run, show the user,"
+            " THEN apply for real.\nThere is no override flag.")
+    return con, h
+
+
+def gate_log(con, stage, evidence):
+    con.execute("INSERT INTO pipeline_log VALUES(?,?,?)",
+                (stage, time.time(), evidence))
+    con.commit()
+
+
 def apply_plan(args):
+    con, plan_hash = gate_check(args)
     rows = list(csv.DictReader(open(args.plan)))
     journal = None if args.dry_run else open(args.journal, "a")
     ok = failed = 0
@@ -120,10 +166,16 @@ def apply_plan(args):
         journal.close()
     label = "DRY RUN — nothing moved" if args.dry_run else "Applied"
     print(f"\n{label}: {ok:,} ok, {failed:,} failed of {total:,}.")
-    if not args.dry_run:
+    if args.dry_run:
+        gate_log(con, "move_dryrun", plan_hash)
+        print("Dry-run logged. Show this output to the user before the"
+              " real apply.")
+    else:
+        gate_log(con, "apply",
+                 f"move journal={args.journal} moved={ok} failed={failed}")
         print(f"Undo with: apply_moves.py --undo --journal {args.journal}")
-        print("Re-run drive-inventory on affected roots to refresh the"
-              " catalog.")
+        print("NOT COMPLETE until file-verify passes on this journal,"
+              " then re-run drive-inventory on affected roots.")
 
 
 def undo(args):
@@ -147,11 +199,18 @@ def undo(args):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--db", help="catalog DB (required except for --undo)")
     ap.add_argument("--plan", help="plan CSV from plan_moves.py")
     ap.add_argument("--journal", required=True, help="JSONL journal path")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--undo", action="store_true")
+    ap.add_argument("--user-edited-plan", action="store_true",
+                    help="accept a plan CSV the USER edited after"
+                         " plan_moves.py generated it (audit-logged; never"
+                         " pass without explicit user approval)")
     args = ap.parse_args()
+    if not args.undo and not args.db:
+        ap.error("--db is required (gate tracking lives in the catalog)")
     if args.undo:
         undo(args)
     else:

@@ -350,6 +350,11 @@ def main():
     html_doc = build(con, args)
     with open(args.out, "w") as f:
         f.write(html_doc)
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
+    con.execute("INSERT INTO pipeline_log VALUES('report',?,?)",
+                (time.time(), args.out))
+    con.commit()
     print(f"Report written: {args.out}")
     con.close()
 

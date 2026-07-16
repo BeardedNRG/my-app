@@ -46,7 +46,35 @@ def connect(db):
                      ("img_h", "INTEGER")):
         if col not in cols:
             con.execute(f"ALTER TABLE files ADD COLUMN {col} {typ}")
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
     return con
+
+
+def gate_log(con, stage, evidence=""):
+    con.execute("INSERT INTO pipeline_log VALUES(?,?,?)",
+                (stage, time.time(), evidence))
+    con.commit()
+
+
+def require_fresh_classify(con):
+    last_scan = con.execute(
+        "SELECT MAX(scanned_at) FROM scan_meta").fetchone()[0] or 0
+    ts = con.execute("SELECT MAX(ts) FROM pipeline_log WHERE"
+                     " stage='classify'").fetchone()[0]
+    if not ts or ts < last_scan:
+        sys.exit("GATE BLOCKED: classification is missing or older than the"
+                 " latest drive scan.\nDo this first: file-classify"
+                 " classify.py --db <db>\nThere is no override flag.")
+
+
+def sha256_file(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def dhash(path):
@@ -63,6 +91,7 @@ def dhash(path):
 
 
 def cmd_scan(con, args):
+    require_fresh_classify(con)
     rows = con.execute(
         "SELECT id, path FROM files WHERE phash IS NULL AND is_symlink=0"
         " AND ext IN (%s)" % ",".join("?" * len(HASH_EXTS)),
@@ -100,6 +129,7 @@ def cmd_scan(con, args):
     con.executemany("UPDATE files SET phash=?, img_w=?, img_h=? WHERE id=?",
                     batch)
     con.commit()
+    gate_log(con, "phash_scan", f"{done} images hashed")
     print(f"Done: hashed {done:,} images in {time.time() - t0:.0f}s."
           " Run 'plan'.")
 
@@ -144,6 +174,10 @@ def cluster(rows, max_dist):
 def cmd_plan(con, args):
     if args.distance > 7:
         sys.exit("--distance above 7 breaks candidate bucketing; use <= 7")
+    if not con.execute("SELECT MAX(ts) FROM pipeline_log WHERE"
+                       " stage='phash_scan'").fetchone()[0]:
+        sys.exit("GATE BLOCKED: no perceptual-hash scan has run on this"
+                 " catalog.\nDo this first: near_dupes.py --db <db> scan")
     rows = [dict(zip(("id", "path", "root", "size", "phash", "img_w",
                       "img_h", "unit_id"), r))
             for r in con.execute(
@@ -173,6 +207,7 @@ def cmd_plan(con, args):
                                           "keeper", "hash"])
         w.writeheader()
         w.writerows(sorted(plan, key=lambda r: -r["size"]))
+    gate_log(con, "plan_hash", sha256_file(args.out))
     nq = sum(1 for r in plan if r["action"] == "quarantine")
     print(f"=== Near-duplicate plan: {args.out} ===")
     print(f"  {len(groups):,} visually-matching groups")

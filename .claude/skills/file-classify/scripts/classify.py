@@ -12,6 +12,8 @@ import argparse
 import os
 import re
 import sqlite3
+import sys
+import time
 from collections import defaultdict
 
 EXT_CATEGORIES = {
@@ -43,6 +45,10 @@ BACKUP_NAME_RE = re.compile(
 def connect(db):
     con = sqlite3.connect(db)
     con.execute("PRAGMA journal_mode=WAL")
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE name='files'"
+                       ).fetchone():
+        sys.exit("GATE BLOCKED: this catalog has no scan data.\n"
+                 "Do this first: drive-inventory scan.py --db <db> <roots>")
     cols = {r[1] for r in con.execute("PRAGMA table_info(files)")}
     if "category" not in cols:
         con.execute("ALTER TABLE files ADD COLUMN category TEXT")
@@ -310,12 +316,22 @@ def main():
     elif args.report:
         report(con)
     else:
+        (nf,) = con.execute("SELECT COUNT(*) FROM files").fetchone()
+        if not nf:
+            sys.exit("GATE BLOCKED: the catalog is empty - nothing has been"
+                     " scanned.\nDo this first: drive-inventory scan.py"
+                     " --db <db> <roots>")
         n = detect_units(con)
         print(f"Detected {n} units.")
         assign(con)
         print("Classification complete.")
         if args.exif:
             extract_years(con)
+        con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                    "stage TEXT, ts REAL, evidence TEXT)")
+        con.execute("INSERT INTO pipeline_log VALUES('classify',?,?)",
+                    (time.time(), f"{nf} files, {n} units"))
+        con.commit()
         report(con)
     con.close()
 

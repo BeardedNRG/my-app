@@ -8,11 +8,53 @@ loose files move individually (kind=file). Output CSV columns:
 """
 import argparse
 import csv
+import hashlib
 import json
 import os
 import sqlite3
+import sys
 import time
 from collections import defaultdict
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def gates(con, args):
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
+    last_scan = con.execute(
+        "SELECT MAX(scanned_at) FROM scan_meta").fetchone()[0] or 0
+
+    def latest(stage):
+        return con.execute("SELECT MAX(ts) FROM pipeline_log WHERE stage=?",
+                           (stage,)).fetchone()[0]
+
+    ts = latest("classify")
+    if not ts or ts < last_scan:
+        sys.exit("GATE BLOCKED: classification is missing or older than the"
+                 " latest drive scan.\nDo this first: file-classify"
+                 " classify.py --db <db>\nThere is no override flag.")
+    ts = latest("dedupe_scan")
+    if not ts or ts < last_scan:
+        if args.skip_dedupe:
+            con.execute("INSERT INTO pipeline_log VALUES("
+                        "'dedupe_waived',?,?)",
+                        (time.time(), args.skip_dedupe))
+            con.commit()
+            print(f"Dedupe gate waived (audit-logged): {args.skip_dedupe}")
+        else:
+            sys.exit(
+                "GATE BLOCKED: no current dedupe scan - organizing before"
+                " deduplicating physically spreads the duplicates into the"
+                " clean layout.\nDo this first: file-dedupe dedupe.py"
+                " --db <db> scan\nONLY if the USER explicitly said to skip"
+                " dedupe, re-run with --skip-dedupe \"<their words>\".")
 
 
 def dest_for(src, root, dest_root, keep_below, year=None):
@@ -39,6 +81,10 @@ def main():
     ap.add_argument("--db", required=True)
     ap.add_argument("--config", required=True, help="layout JSON")
     ap.add_argument("--out", required=True, help="plan CSV path")
+    ap.add_argument("--skip-dedupe", metavar="USER_APPROVAL",
+                    help="waive the dedupe-before-organize gate; pass the"
+                         " user's own words approving the skip"
+                         " (audit-logged)")
     args = ap.parse_args()
 
     cfg = json.load(open(args.config))
@@ -47,6 +93,7 @@ def main():
     year_cats = set(cfg.get("year_subfolders", []))
     kind_dests = cfg.get("photo_kind_destinations", {})
     con = sqlite3.connect(args.db)
+    gates(con, args)
     fcols = {r[1] for r in con.execute("PRAGMA table_info(files)")}
     has_year = "media_year" in fcols
     has_kind = "photo_kind" in fcols
@@ -108,6 +155,9 @@ def main():
         w.writeheader()
         w.writerows(rows)
 
+    con.execute("INSERT INTO pipeline_log VALUES('move_plan_hash',?,?)",
+                (time.time(), sha256_file(args.out)))
+    con.commit()
     print(f"=== Move plan: {args.out} ({len(rows):,} operations) ===")
     for d, (n, b) in sorted(stats.items(), key=lambda kv: -kv[1][1]):
         print(f"  -> {d}: {n:,} items, {b / 1e9:.2f} GB")

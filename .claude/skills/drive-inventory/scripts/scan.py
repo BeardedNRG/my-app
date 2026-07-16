@@ -158,6 +158,10 @@ def scan_root(con, root, label, excludes):
         "INSERT OR REPLACE INTO scan_meta VALUES(?,?,?,?,?)",
         (label, root, time.time(), count, total),
     )
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
+    con.execute("INSERT INTO pipeline_log VALUES('scan',?,?)",
+                (time.time(), f"{label}: {count} files, {errors} errors"))
     con.commit()
     print(f"Done: {count:,} files, {total / 1e9:.2f} GB, {errors} errors "
           f"(see scan_errors table)", flush=True)

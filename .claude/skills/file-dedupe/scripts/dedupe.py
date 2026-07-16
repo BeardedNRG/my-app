@@ -36,7 +36,41 @@ def connect(db):
             con.execute(f"ALTER TABLE files ADD COLUMN {col} TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS idx_files_fullhash"
                 " ON files(full_hash)")
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
     return con
+
+
+# ---- pipeline gates (mechanical; no override flags) ---------------------
+
+def gate_log(con, stage, evidence=""):
+    con.execute("INSERT INTO pipeline_log VALUES(?,?,?)",
+                (stage, time.time(), evidence))
+    con.commit()
+
+
+def gate_block(problem, fix):
+    sys.exit(f"GATE BLOCKED: {problem}\nDo this first: {fix}\n"
+             "There is no override flag. Completing the step is the only"
+             " way through this gate.")
+
+
+def gate_latest(con, stage):
+    return con.execute("SELECT MAX(ts) FROM pipeline_log WHERE stage=?",
+                       (stage,)).fetchone()[0]
+
+
+def require_fresh_classify(con):
+    last_scan = con.execute(
+        "SELECT MAX(scanned_at) FROM scan_meta").fetchone()[0] or 0
+    ts = gate_latest(con, "classify")
+    if not ts:
+        gate_block("classification has never run on this catalog",
+                   "file-classify classify.py --db <db>")
+    if ts < last_scan:
+        gate_block("a drive was re-scanned AFTER the last classification;"
+                   " categories and units are stale",
+                   "re-run file-classify classify.py --db <db>")
 
 
 def hash_file(path, quick=False):
@@ -104,6 +138,7 @@ def parallel_hash(con, rows, column, quick, workers):
 
 
 def cmd_scan(con, args):
+    require_fresh_classify(con)
     where, params = candidates_where(args)
     rows = con.execute(
         f"SELECT id, path, size FROM files WHERE {where}"
@@ -129,6 +164,7 @@ def cmd_scan(con, args):
         "SELECT COUNT(*) FROM (SELECT full_hash FROM files"
         " WHERE full_hash IS NOT NULL AND unit_id IS NULL"
         " GROUP BY full_hash HAVING COUNT(*) > 1)").fetchone()[0]
+    gate_log(con, "dedupe_scan", f"{groups} duplicate groups")
     print(f"Scan complete: {groups:,} duplicate groups found. Run 'plan'.")
 
 
@@ -148,6 +184,10 @@ def keeper_score(path, category, mtime, depth):
 
 
 def cmd_plan(con, args):
+    require_fresh_classify(con)
+    if not gate_latest(con, "dedupe_scan"):
+        gate_block("no dedupe scan has been logged for this catalog",
+                   "dedupe.py --db <db> scan")
     where, params = candidates_where(args)
     rows = con.execute(
         f"SELECT id, path, root, size, mtime, depth, category, full_hash"
@@ -179,6 +219,7 @@ def cmd_plan(con, args):
                                           "keeper", "hash"])
         w.writeheader()
         w.writerows(sorted(plan_rows, key=lambda r: -r["size"]))
+    gate_log(con, "plan_hash", hash_file(args.out))
     print(f"=== Dedupe plan: {args.out} ===")
     print(f"  {len(groups):,} duplicate groups")
     print(f"  {n_files:,} files to quarantine")
@@ -313,6 +354,21 @@ def find_root_dir(con, label):
 
 
 def cmd_apply(con, args):
+    h = hash_file(args.plan)
+    known = con.execute(
+        "SELECT 1 FROM pipeline_log WHERE stage IN"
+        " ('plan_hash','plan_edited') AND evidence=?", (h,)).fetchone()
+    if not known:
+        if args.user_edited_plan:
+            gate_log(con, "plan_edited", h)
+            print("Plan re-registered as user-edited (audit-logged).")
+        else:
+            gate_block(
+                "this plan file was not produced by a 'plan' step on this"
+                " catalog (or was modified since)",
+                "regenerate it with 'plan', or - ONLY if the USER edited it"
+                " and approved the edits - re-run apply with"
+                " --user-edited-plan")
     rows = list(csv.DictReader(open(args.plan)))
     todo = [r for r in rows if r["action"].strip().lower() == "quarantine"]
     print(f"Applying: {len(todo):,} of {len(rows):,} plan rows ...")
@@ -350,9 +406,12 @@ def cmd_apply(con, args):
             journal.flush()
     con.commit()
     journal.close()
+    gate_log(con, "apply",
+             f"dedupe journal={args.journal} moved={moved} failed={errors}")
     print(f"Done: {moved:,} files quarantined, {errors} errors."
           f"\nQuarantine folders are named '{QUARANTINE}' at each drive root."
-          f"\nUndo any time with: dedupe.py undo --journal {args.journal}")
+          f"\nUndo any time with: dedupe.py undo --journal {args.journal}"
+          "\nNOT COMPLETE until file-verify passes on this journal.")
 
 
 def cmd_undo(con, args):
@@ -391,6 +450,10 @@ def main():
     p = sub.add_parser("apply")
     p.add_argument("--plan", required=True)
     p.add_argument("--journal", required=True)
+    p.add_argument("--user-edited-plan", action="store_true",
+                   help="accept a plan CSV the USER edited after 'plan'"
+                        " generated it (audit-logged; never pass this"
+                        " without explicit user approval)")
     p = sub.add_parser("undo")
     p.add_argument("--journal", required=True)
     args = ap.parse_args()

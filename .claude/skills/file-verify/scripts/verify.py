@@ -117,6 +117,14 @@ def main():
     print()
     for wmsg in warnings[:20]:
         print(f"  WARN: {wmsg}")
+    con.execute("CREATE TABLE IF NOT EXISTS pipeline_log("
+                "stage TEXT, ts REAL, evidence TEXT)")
+    verdict = "verify_fail" if problems else "verify_pass"
+    import time as _time
+    con.execute("INSERT INTO pipeline_log VALUES(?,?,?)",
+                (verdict, _time.time(),
+                 f"journal={args.journal} problems={len(problems)}"))
+    con.commit()
     if problems:
         print(f"VERDICT: FAIL - {len(problems)} problems")
         for p in problems[:50]:
