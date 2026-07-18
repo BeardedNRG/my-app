@@ -105,3 +105,22 @@ top folders) so "backup2016.zip" stops being a mystery.
 Edit the tables in `scripts/classify.py` (EXT_CATEGORIES, unit markers) —
 they are plain dicts near the top. Keep `references/taxonomy.md` in sync; it
 is the human-readable contract for what each category means.
+
+## Ranking candidate copies of a build (which folder is the real one?)
+
+When a folder holds many copies of a project — old backups, installer
+payloads, clones — and the user needs to know which one to revive:
+
+```bash
+python3 scripts/rank_builds.py --db <catalog.db> <parent-folder>
+python3 scripts/rank_builds.py --db <catalog.db> --dirs A B C
+```
+
+Generic — no project knowledge needed, works on any folder past or
+future. Ranks by unique content (the copy someone worked in accumulates
+files no clone has), sustained edit activity vs one tight extract-time
+cluster, source markers (.git, code files), and completeness. Installer
+payloads are labeled and ranked last; byte-identical candidates are
+collapsed into clone groups. Ends with a plain verdict naming the folder
+to revive from. Run scan + classify first; `dedupe.py scan` beforehand
+sharpens uniqueness with real hashes.
