@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+*.pem
+*.key
+*credentials*.json
+*token*.json
+references/
+house-model/
+tools/
+claude-channel/
+data/
+*.db
+*.sqlite*
+*.log
